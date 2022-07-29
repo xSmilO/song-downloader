@@ -1,0 +1,25 @@
+{
+    "name": "song-downloader",
+    "version": "1.0.0",
+    "description": "",
+    "main": "index.js",
+    "scripts": {
+        "test": "echo \"Error: no test specified\" && exit 1",
+        "start": "node index.js",
+        "build": "nexe index.js -t windows-x64-10.0.0 --verbose -r ./node_modules/**/* -r package.json",
+        "pkg": "pkg index.js -t node16-win-x64 "
+    },
+    "keywords": [],
+    "author": "",
+    "license": "ISC",
+    "dependencies": {
+        "chalk": "2.4",
+        "discord.js": "^13.8.1",
+        "ffmpeg-static": "^5.0.0",
+        "inquirer": "^8.2.4",
+        "nanospinner": "^1.1.0",
+        "play-dl": "^1.9.5",
+        "yt-search": "^2.10.3",
+        "ytdl-core": "^4.11.0"
+    }
+}

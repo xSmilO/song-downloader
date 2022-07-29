@@ -1,6 +1,6 @@
 const chalk = require("chalk").default;
 const { exec } = require("child_process");
-const ffmpegPath = require("ffmpeg-static").replace(/\//gi, "\\");
+const ffmpegPath = require("ffmpeg-static");
 const fs = require("fs");
 const inquirer = require("inquirer");
 const ytdl = require("ytdl-core");
@@ -36,12 +36,22 @@ const YOUTUBE_PLAYLIST_REGEX = new RegExp(
 const sleep = (ms = 2000) => new Promise((r) => setTimeout(r, ms));
 
 async function start() {
-    try {
-        if (!fs.existsSync("./songs")) {
-            fs.mkdirSync("./songs");
+    if (process.platform == "win32") {
+        try {
+            if (!fs.existsSync(".\\songs")) {
+                fs.mkdirSync(".\\songs");
+            }
+        } catch (err) {
+            console.error(err);
         }
-    } catch (err) {
-        console.error(err);
+    } else {
+        try {
+            if (!fs.existsSync("./songs")) {
+                fs.mkdirSync("./songs");
+            }
+        } catch (err) {
+            console.error(err);
+        }
     }
 
     const choice = await inquirer.prompt({
@@ -65,7 +75,11 @@ async function start() {
 
 async function downloadFromVideoUrl() {
     const URL = await getUrl();
-    await getStream("./songs/", URL);
+    if (process.platform == "win32") {
+        await getStream(".\\songs\\", URL);
+    } else {
+        await getStream("./songs/", URL);
+    }
 }
 
 async function downloadFromPlaylistUrl() {
@@ -83,16 +97,30 @@ async function downloadFromPlaylistUrl() {
         songs.push(song.url);
     }
 
-    try {
-        if (!fs.existsSync(`./songs/${playlistName}`)) {
-            fs.mkdirSync(`./songs/${playlistName}`);
+    if (process.platform == "win32") {
+        try {
+            if (!fs.existsSync(`.\\songs\\${playlistName}`)) {
+                fs.mkdirSync(`.\\songs\\${playlistName}`);
+            }
+        } catch (e) {
+            console.error("Error when creating a directory");
         }
-    } catch (e) {
-        console.error("Error when creating a directory");
-    }
 
-    for (let song of songs) {
-        await getStream(`./songs/${playlistName}/`, song);
+        for (let song of songs) {
+            await getStream(`.\\songs\\${playlistName}\\`, song);
+        }
+    } else {
+        try {
+            if (!fs.existsSync(`./songs/${playlistName}`)) {
+                fs.mkdirSync(`./songs/${playlistName}`);
+            }
+        } catch (e) {
+            console.error("Error when creating a directory");
+        }
+
+        for (let song of songs) {
+            await getStream(`./songs/${playlistName}/`, song);
+        }
     }
 }
 
@@ -143,7 +171,8 @@ async function getStream(path, url) {
         const title = data.video_details.title
             .replace(/\'/g, "")
             .replace(/\\/g, "")
-            .replace(/\//g, "");
+            .replace(/\//g, "")
+            .replace(/"/gi, "");
         const downloadSpinner = createSpinner("Downloading video...").start();
         let stream = ytdl(url).pipe(
             fs.createWriteStream(`${path}${title}.mp4`)
@@ -156,9 +185,14 @@ async function getStream(path, url) {
                 "Converting to mp3..."
             ).start();
 
-            let command = `${ffmpegPath} -i ${path}'${title}.mp4' -vn -ar 44100 -ac 2 -ab 192 -f mp3 ${path}'${title}.mp3'`;
-            command = command.replace(/\//gi, "\\");
-            console.log(command);
+            let command = "";
+
+            if (process.platform == "win32") {
+                command = `${ffmpegPath} -i "${path}${title}.mp4" -vn -ar 44100 -ac 2 -ab 192 -f mp3 "${path}${title}.mp3"`;
+                command = command.replace(/\//gi, "\\");
+            } else {
+                command = `${ffmpegPath} -i ${path}'${title}.mp4' -vn -ar 44100 -ac 2 -ab 192 -f mp3 ${path}'${title}.mp3'`;
+            }
 
             exec(command, (err, stdout, stderr) => {
                 if (err) {

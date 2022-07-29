@@ -202,7 +202,10 @@ async function getStream(path, url) {
                 } else {
                     convertingSpinner.success({ text: "Video converted" });
                 }
-                fs.unlinkSync(`${path}${title}.mp4`);
+		if(process.platform == "win32")
+		    fs.unlinkSync(`"${path}${title}.mp4"`);
+		else
+                   fs.unlinkSync(`${path}${title}.mp4`);
             });
         });
     } catch (e) {

@@ -34,6 +34,14 @@ const YOUTUBE_PLAYLIST_REGEX = new RegExp(
 const sleep = (ms = 2000) => new Promise((r) => setTimeout(r, ms));
 
 async function start() {
+    try {
+        if (!fs.existsSync("./songs")) {
+            fs.mkdirSync("./songs");
+        }
+    } catch (err) {
+        console.error(err);
+    }
+
     const choice = await inquirer.prompt({
         name: "Choose",
         type: "list",

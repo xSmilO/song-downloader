@@ -1,6 +1,6 @@
 const chalk = require("chalk").default;
 const { exec } = require("child_process");
-const ffmpegPath = require("ffmpeg-static");
+const ffmpegPath = require("ffmpeg-static").replace(/\//gi, "\\");
 const fs = require("fs");
 const inquirer = require("inquirer");
 const ytdl = require("ytdl-core");
@@ -14,6 +14,8 @@ const { video_basic_info } = require("play-dl");
 
 ///mnt/c/Users/mateo/OneDrive/Pulpit/safd/song-downloader/node_modules/ffmpeg-static/ffmpeg
 //ffmpeg -i ./music.ogg -vn -ar 44100 -ac 2 -ab 192 -f mp3 test.mp3
+
+//C:\Users\mateo\OneDrive\Pulpit\safd\song-downloader\node_modules/ffmpeg-static/ffmpeg -i ./songs/'Gibbs - Nigdy albo zawsze.mp4' -vn -ar 44100 -ac 2 -ab 192 -f mp3 ./songs/'Gibbs - Nigdy albo zawsze.mp3'
 
 // prettier-ignore
 const YOUTUBE_PLAYLIST_REGEX = new RegExp(
@@ -154,7 +156,9 @@ async function getStream(path, url) {
                 "Converting to mp3..."
             ).start();
 
-            const command = `${ffmpegPath} -i ${path}'${title}.mp4' -vn -ar 44100 -ac 2 -ab 192 -f mp3 ${path}'${title}.mp3'`;
+            let command = `${ffmpegPath} -i ${path}'${title}.mp4' -vn -ar 44100 -ac 2 -ab 192 -f mp3 ${path}'${title}.mp3'`;
+            command = command.replace(/\//gi, "\\");
+            console.log(command);
 
             exec(command, (err, stdout, stderr) => {
                 if (err) {

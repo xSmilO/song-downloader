@@ -13,7 +13,7 @@ commander_1.program
     .addHelpText("after", `
         Example usage:
 
-        sound-downloader <url> ...flags
+        sound-dl <url> ...flags
 
         -o, --output  -set your output path (default: current directory)
         -p, --playlist -set mode to download playlist (default: false)

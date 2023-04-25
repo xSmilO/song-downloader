@@ -36,6 +36,7 @@ class Downloader {
             hideCursor: true,
         });
         this.allDownloaded = false;
+        this.errorCount = 0;
     }
     setPath(path) {
         this.path = path;
@@ -55,10 +56,11 @@ class Downloader {
             this.path = path_1.default.join(this.relativePath, this.path);
             if (this.playlistMode) {
                 yield this.getPlaylistInfo();
-                this.downloadPlaylist();
+                this.download();
             }
             if (!this.playlistMode) {
-                this.download(yield this.getVideoInfo());
+                this.songs.push(yield this.getVideoInfo());
+                this.download();
             }
         });
     }
@@ -67,7 +69,16 @@ class Downloader {
         //     /[A-Za-z0-9\!\@\#\$\%\^\&\*\)\(+\=\._-]+$/g,
         //     ""
         // );
-        song.title = song.title.replace(/\&|\||>|<|\^|\'/g, "");
+        // song.filename = song.filename.replace(/\&|\||>|<|\^|\'/g, "");
+        song.filename = song.filename
+            .replace(/\^/g, "^^")
+            .replace(/\&/g, "^&")
+            .replace(/\</g, "^<")
+            .replace(/\>/g, "^>")
+            .replace(/\|/g, "^|")
+            .replace(/\"/g, "")
+            .replace(/\//g, " ")
+            .replace(/\\/g, " ");
         // song.title = song.title.replace(/\(/g, "^(");
         // song.title = song.title.replace(/\)/g, "^)");
     }
@@ -77,6 +88,7 @@ class Downloader {
             return {
                 url: this.url,
                 title: info.videoDetails.title,
+                filename: info.videoDetails.title,
                 duration: parseFloat(info.videoDetails.lengthSeconds),
                 downloaded: false,
                 downloading: false,
@@ -85,19 +97,25 @@ class Downloader {
     }
     getPlaylistInfo() {
         return __awaiter(this, void 0, void 0, function* () {
-            const playlistInfo = yield (0, ytpl_1.default)(this.url, { pages: Infinity });
-            playlistInfo.items.map((song) => {
-                this.songs.push({
-                    url: song.shortUrl,
-                    title: song.title,
-                    duration: song.durationSec ? song.durationSec : 0,
-                    downloaded: false,
-                    downloading: false,
+            try {
+                const playlistInfo = yield (0, ytpl_1.default)(this.url, { pages: Infinity });
+                playlistInfo.items.map((song) => {
+                    this.songs.push({
+                        url: song.shortUrl,
+                        title: song.title,
+                        filename: song.title,
+                        duration: song.durationSec ? song.durationSec : 0,
+                        downloaded: false,
+                        downloading: false,
+                    });
                 });
-            });
+            }
+            catch (e) {
+                throw new Error("You need to provide valid playlist ID");
+            }
         });
     }
-    download(song, index = 0) {
+    downloadSong(song, index = 0) {
         return __awaiter(this, void 0, void 0, function* () {
             const video = (0, ytdl_core_1.default)(song.url, {
                 filter: "audioonly",
@@ -105,9 +123,10 @@ class Downloader {
             });
             fluent_ffmpeg_1.default.setFfmpegPath(`${ffmpeg_static_1.default}`);
             this.validateTitle(song);
-            const fullSongPath = `${this.path}\\${song.title}.mp3`;
+            const fullSongPath = `${this.path}\\${song.filename}.mp3`;
             this.progressBar.start(song.duration, 0, {
-                filename: song.title,
+                // filename: song.title,
+                filename: song.filename,
                 length: this.songs.length,
                 index: index + 1,
             });
@@ -127,8 +146,22 @@ class Downloader {
                     const totalSeconds = hours * 60 * 60 + minutes * 60 + seconds;
                     this.progressBar.increment(Math.round(totalSeconds));
                 })
+                    .on("error", (err, stdout, stderr) => {
+                    // console.log("Cannot process video: " + err.message);
+                    //Error counts
+                    this.errorCount++;
+                    if (this.errorCount >= 5) {
+                        song.downloaded = true;
+                        song.downloading = false;
+                    }
+                    else {
+                        song.downloaded = false;
+                        song.downloading = false;
+                    }
+                })
                     .on("end", () => {
                     // this.progressBar.stop();
+                    this.errorCount = 0;
                     song.downloaded = true;
                     song.downloading = false;
                 })
@@ -137,28 +170,29 @@ class Downloader {
             catch (e) {
                 console.error(e);
                 song.downloaded = true;
-                song.downloading;
+                song.downloading = false;
             }
             // console.log(song);
         });
     }
-    downloadPlaylist() {
+    download() {
         let index = 0;
         const loop = setInterval(() => {
             var _a, _b, _c, _d;
             if (index >= this.songs.length) {
                 this.allDownloaded = true;
+                // this.progressBar.stop();
                 clearInterval(loop);
             }
             if (((_a = this.songs[index]) === null || _a === void 0 ? void 0 : _a.downloading) == false &&
                 ((_b = this.songs[index]) === null || _b === void 0 ? void 0 : _b.downloaded) == false) {
-                this.download(this.songs[index], index);
+                this.downloadSong(this.songs[index], index);
             }
             if (((_c = this.songs[index]) === null || _c === void 0 ? void 0 : _c.downloaded) == true &&
-                ((_d = this.songs[index]) === null || _d === void 0 ? void 0 : _d.downloading) == false)
+                ((_d = this.songs[index]) === null || _d === void 0 ? void 0 : _d.downloading) == false) {
                 index++;
+            }
             if (this.allDownloaded) {
-                console.log("kurwa");
                 this.progressBar.stop();
             }
         }, 1000);

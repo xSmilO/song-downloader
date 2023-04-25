@@ -9,6 +9,7 @@ import ytpl from "ytpl";
 interface Song {
     url: string;
     title: string;
+    filename: string;
     duration: number;
     downloaded: boolean;
     downloading: boolean;
@@ -23,6 +24,7 @@ class Downloader {
     songs: Song[];
     progressBar: cliProgress.SingleBar;
     allDownloaded: boolean;
+    errorCount: number;
 
     constructor(relativePath: string) {
         this.url = "";
@@ -41,6 +43,7 @@ class Downloader {
             hideCursor: true,
         });
         this.allDownloaded = false;
+        this.errorCount = 0;
     }
 
     setPath(path: string): void {
@@ -62,12 +65,12 @@ class Downloader {
 
         if (this.playlistMode) {
             await this.getPlaylistInfo();
-
-            this.downloadPlaylist();
+            this.download();
         }
 
         if (!this.playlistMode) {
-            this.download(await this.getVideoInfo());
+            this.songs.push(await this.getVideoInfo());
+            this.download();
         }
     }
 
@@ -76,7 +79,16 @@ class Downloader {
         //     /[A-Za-z0-9\!\@\#\$\%\^\&\*\)\(+\=\._-]+$/g,
         //     ""
         // );
-        song.title = song.title.replace(/\&|\||>|<|\^|\'/g, "");
+        // song.filename = song.filename.replace(/\&|\||>|<|\^|\'/g, "");
+        song.filename = song.filename
+            .replace(/\^/g, "^^")
+            .replace(/\&/g, "^&")
+            .replace(/\</g, "^<")
+            .replace(/\>/g, "^>")
+            .replace(/\|/g, "^|")
+            .replace(/\"/g, "")
+            .replace(/\//g, " ")
+            .replace(/\\/g, " ");
         // song.title = song.title.replace(/\(/g, "^(");
         // song.title = song.title.replace(/\)/g, "^)");
     }
@@ -87,6 +99,7 @@ class Downloader {
         return {
             url: this.url,
             title: info.videoDetails.title,
+            filename: info.videoDetails.title,
             duration: parseFloat(info.videoDetails.lengthSeconds),
             downloaded: false,
             downloading: false,
@@ -94,20 +107,25 @@ class Downloader {
     }
 
     async getPlaylistInfo() {
-        const playlistInfo = await ytpl(this.url, { pages: Infinity });
+        try {
+            const playlistInfo = await ytpl(this.url, { pages: Infinity });
 
-        playlistInfo.items.map((song) => {
-            this.songs.push({
-                url: song.shortUrl,
-                title: song.title,
-                duration: song.durationSec ? song.durationSec : 0,
-                downloaded: false,
-                downloading: false,
+            playlistInfo.items.map((song) => {
+                this.songs.push({
+                    url: song.shortUrl,
+                    title: song.title,
+                    filename: song.title,
+                    duration: song.durationSec ? song.durationSec : 0,
+                    downloaded: false,
+                    downloading: false,
+                });
             });
-        });
+        } catch (e) {
+            throw new Error("You need to provide valid playlist ID");
+        }
     }
 
-    async download(song: Song, index: number = 0): Promise<void> {
+    async downloadSong(song: Song, index: number = 0): Promise<void> {
         const video = ytdl(song.url, {
             filter: "audioonly",
             quality: "highestaudio",
@@ -116,10 +134,11 @@ class Downloader {
 
         this.validateTitle(song);
 
-        const fullSongPath = `${this.path}\\${song.title}.mp3`;
+        const fullSongPath = `${this.path}\\${song.filename}.mp3`;
 
         this.progressBar.start(song.duration, 0, {
-            filename: song.title,
+            // filename: song.title,
+            filename: song.filename,
             length: this.songs.length,
             index: index + 1,
         });
@@ -141,8 +160,22 @@ class Downloader {
                         hours * 60 * 60 + minutes * 60 + seconds;
                     this.progressBar.increment(Math.round(totalSeconds));
                 })
+                .on("error", (err, stdout, stderr) => {
+                    // console.log("Cannot process video: " + err.message);
+                    //Error counts
+                    this.errorCount++;
+                    if (this.errorCount >= 5) {
+                        song.downloaded = true;
+                        song.downloading = false;
+                    } else {
+                        song.downloaded = false;
+                        song.downloading = false;
+                    }
+                })
                 .on("end", () => {
                     // this.progressBar.stop();
+                    this.errorCount = 0;
+
                     song.downloaded = true;
                     song.downloading = false;
                 })
@@ -150,17 +183,18 @@ class Downloader {
         } catch (e) {
             console.error(e);
             song.downloaded = true;
-            song.downloading;
+            song.downloading = false;
         }
         // console.log(song);
     }
 
-    downloadPlaylist(): void {
+    download(): void {
         let index = 0;
 
         const loop = setInterval(() => {
             if (index >= this.songs.length) {
                 this.allDownloaded = true;
+                // this.progressBar.stop();
                 clearInterval(loop);
             }
 
@@ -168,17 +202,17 @@ class Downloader {
                 this.songs[index]?.downloading == false &&
                 this.songs[index]?.downloaded == false
             ) {
-                this.download(this.songs[index], index);
+                this.downloadSong(this.songs[index], index);
             }
 
             if (
                 this.songs[index]?.downloaded == true &&
                 this.songs[index]?.downloading == false
-            )
+            ) {
                 index++;
+            }
 
             if (this.allDownloaded) {
-                console.log("kurwa");
                 this.progressBar.stop();
             }
         }, 1000);
